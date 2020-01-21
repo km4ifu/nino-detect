@@ -7,6 +7,7 @@
 ndir=/home/pi/nino-tnc
 ndir=/tmp/nino-tnc
 piuser=indeo
+piuser=$(whoami)
 devserdir=/dev/serial/by-id
 
 DO_RESET=0
@@ -56,13 +57,19 @@ if [ $DO_RESET -eq 1 ]; then
 fi
 
 for d in $devserdir/*; do
- echo $d
- if [ -r $ndir/sm01 ]; then
+ echo $d  # d = devices in device serial directory
+ if [ -r $ndir/sm01 ]; then  # if sm01 exists,
   for f in $ndir/*; do
-   l=$(ls -la $f | awk '{print $NF}')
+   l=$(ls -la $f | awk '{print $NF}')  # l = line in ls output
+   if [ $DEBUG -eq 1 ]; then
+    echo l = "$l"
+    echo d = "$d"
+   fi
    if [ "$l" == "$d" ]; then
+    echo continue 2
     continue 2
    else
+    echo continue 1
     continue 1
    fi
    for x in {02..99}; do
