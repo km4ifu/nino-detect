@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# nino-detect
+# run with sudo as pi user
+# v0.1 010520 etg - initial write, untested with multiple tncs
+
+ndir=/home/pi/nino-tnc
+ndir=/tmp/nino-tnc
+piuser=indeo
+devserdir=/dev/serial/by-id
+
+DO_RESET=0
+DEBUG=0
+
+function nt_init()
+{
+ mkdir -pv $ndir && chown $piuser:$piuser $ndir && chmod 770 $ndir
+ if ! [ -d $devserdir ]; then
+  echo no serial devices found
+  exit 1
+ fi
+ if [ $DEBUG -eq 1 ]; then
+  echo ndir=$ndir - list:
+  find $ndir/ -ls
+ fi
+}
+
+function nt_reset()
+{
+ if [ -d $ndir/ ]; then
+  find $ndir/ -type l -ls -delete
+ fi
+}
+
+
+
+while getopts "dr" o; do
+ case $o in
+  d) DEBUG=1; echo debugging mode enabled; ;;
+  r) DO_RESET=1; ;;
+  *) echo invalid arg $o; exit 1; ;;
+ esac
+done
+
+
+## main
+
+nt_init
+
+if [ $DO_RESET -eq 1 ]; then
+ nt_reset
+fi
+
+for d in $devserdir/*; do
+ echo $d
+ if [ -r $ndir/sm01 ]; then
+  for f in $ndir/*; do
+   l=$(ls -la $f | awk '{print $NF}')
+   if [ "$l" == "$d" ]; then
+    continue 2
+   else
+    continue 1
+   fi
+   for x in {02..99}; do
+    if ! [ -r $ndir/sm${x} ]; then
+     ln -sv $d $ndir/sm
+     continue 2
+    fi
+   done
+  done
+ else
+  ln -sv $d $ndir/sm01
+  continue 2
+ fi
+done
+
+
+
