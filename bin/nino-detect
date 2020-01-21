@@ -14,6 +14,10 @@ DEBUG=0
 
 function nt_init()
 {
+ if ! [ $(id -u) -eq 0 ]; then
+  echo must be run as root or with sudo
+  exit 1
+ fi
  mkdir -pv $ndir && chown $piuser:$piuser $ndir && chmod 770 $ndir
  if ! [ -d $devserdir ]; then
   echo no serial devices found
