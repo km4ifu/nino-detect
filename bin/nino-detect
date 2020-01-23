@@ -2,15 +2,20 @@
 
 # nino-detect
 # run with sudo as pi user
-# v0.1 010520 etg - initial write, untested with multiple tncs
 
-ndir=/home/pi/nino-tnc
-ndir=/tmp/nino-tnc
-piuser=indeo
-piuser=$(whoami)
-devserdir=/dev/serial/by-id
+VERSION="010520a-km4ifu - initial write, untested with multiple tncs"
+VERSION="012220a-km4ifu - rewrite with multiple ftdi chips for testing"
 
-VERSION=012219a
+TNC_SYMLINK_DIR=/home/pi/nino-tnc
+TNC_SYMLINK_DIR=/tmp/nino-tnc
+if grep "^pi:" /etc/passwd &>/dev/null; then
+ SYMLINK_OWNER=pi
+else
+ SYMLINK_OWNER=$(whoami)
+fi
+DEVICE_SERIAL_DIR=/dev/serial/by-id
+TNC_DATA_FILE=/tmp/nino-tnc.dat
+tools="bc which sed awk grep ls"
 DO_RESET=0
 DEBUG=0
 LIST_TNCS=0
@@ -18,25 +23,36 @@ APPLY_CHANGES=0
 
 function nt_init()
 {
+ for x in $tools; do
+  if not which $x &>/dev/null; then
+   echo tool $x is not found in \$PATH
+   exit 1
+  fi
+ done
  if ! [ $(id -u) -eq 0 ]; then
   echo must be run as root or with sudo
   exit 1
  fi
- mkdir -pv $ndir && chown $piuser:$piuser $ndir && chmod 770 $ndir
- if ! [ -d $devserdir ]; then
-  echo no serial devices found
+ mkdir -p $TNC_SYMLINK_DIR
+ if [ ! -d $TNC_SYMLINK_DIR ]; then
+  echo $TNC_SYMLINK_DIR not accessible
   exit 1
  fi
- if [ $DEBUG -eq 1 ]; then
-  echo ndir=$ndir - list:
-  find $ndir/ -ls
+ chown $SYMLINK_OWNER:$SYMLINK_OWNER $TNC_SYMLINK_DIR
+ chmod 770 $TNC_SYMLINK_DIR
+ if ! [ -d $DEVICE_SERIAL_DIR ]; then
+  echo no serial devices found
+  exit 1
  fi
 }
 
 function nt_reset()
 {
- if [ -d $ndir/ ]; then
-  find $ndir/ -type l -ls -delete
+ if [ -d $TNC_SYMLINK_DIR/ ]; then
+  find $TNC_SYMLINK_DIR/ -type l -ls -delete &>/dev/null
+ fi
+ if [ -f $TNC_DATA_FILE ]; then
+  rm -f $TNC_DATA_FILE
  fi
 }
 
@@ -45,19 +61,19 @@ usage()
   echo $(basename $0) v$VERSION
   echo -e "
 \t-d\tdebug mode
-\t-r\treset all memories
-\t-l\tlist current connected TNCs and memories
-\t-a\tdetect and apply new changes
+\t-r\treset and forget all memories \* use caution \*
+\t-a\tdetect and apply new changes, show list
+\t-u\tset user who should own the links, default $SYMLINK_OWNER
 \t-h\thelp
   "
  }
 
-while getopts "drlah" o; do
+while getopts "drlahu:" o; do
  case $o in
   d) DEBUG=1; echo debugging mode enabled; ;;
   r) DO_RESET=1; ;;
-  l) LIST_TNCS=1; ;;
-  a) APPLY_CHANGES=1; ;;
+  a) APPLY_CHANGES=1; LIST_TNCS=1; ;;
+  u) SYMLINK_OWNER=$OPTARG; ;;
   h) usage; exit 0; ;;
   *) echo invalid arg $o; usage; exit 1; ;;
  esac
@@ -72,34 +88,50 @@ if [ $DO_RESET -eq 1 ]; then
  nt_reset
 fi
 
-for d in $devserdir/*; do
- echo $d  # d = devices in device serial directory
- if [ -r $ndir/sm01 ]; then  # if sm01 exists,
-  for f in $ndir/*; do
-   l=$(ls -la $f | awk '{print $NF}')  # l = line in ls output
-   if [ $DEBUG -eq 1 ]; then
-    echo l = "$l"
-    echo d = "$d"
-   fi
-   if [ "$l" == "$d" ]; then
-    echo continue 2
-    continue 2
-   else
-    echo continue 1
-    continue 1
-   fi
-   for x in {02..99}; do
-    if ! [ -r $ndir/sm${x} ]; then
-     ln -sv $d $ndir/sm
-     continue 2
-    fi
-   done
-  done
- else
-  ln -sv $d $ndir/sm01
-  continue 2
- fi
-done
 
+if [ $APPLY_CHANGES -eq 1 ]; then
+ find $TNC_SYMLINK_DIR/ -type l -ls -delete &>/dev/null
+ for x in $DEVICE_SERIAL_DIR/*; do
+  sn=$(echo $x | awk -F'/' '{print $NF}' | awk -F'_' '{print $5}' | awk -F'-' '{print $1}')
+  : echo $sn
+  if grep "^${sn}:" $TNC_DATA_FILE &>/dev/null; then
+   : echo exists in dat file
+   newnum=$(cat $TNC_DATA_FILE | grep "^${sn}:" | awk -F':' '{print $NF}')
+  else
+   # create a new record
+   if [ -f $TNC_DATA_FILE ]; then
+    prevnum=$(tail -1 $TNC_DATA_FILE | awk -F':' '{print $NF}')
+   else
+    prevnum=0
+   fi
+   newnum=$(echo $prevnum + 1 | bc)
+   echo "${sn}:${newnum}" >> $TNC_DATA_FILE
+  fi
+  ln -s $x $TNC_SYMLINK_DIR/$newnum
+ done
+fi
+
+if [ $DEBUG -eq 1 ]; then
+ echo nino-tnc dir: $TNC_SYMLINK_DIR
+ ls -lah $TNC_SYMLINK_DIR/
+ echo device serial dir: $DEVICE_SERIAL_DIR
+ ls -lah $TNC_SYMLINK_DIR/
+ echo TNC_DATA_FILE: $TNC_DATA_FILE
+ cat $TNC_DATA_FILE
+fi
+
+if [ $LIST_TNCS -eq 1 ]; then
+ echo "TNCs known to this system since last reset ($(basename $0) -r)"
+ for x in $(cat $TNC_DATA_FILE); do
+  s=$(echo $x | awk -F':' '{print $1}')
+  n=$(echo $x | awk -F':' '{print $2}')
+  if [ -c $TNC_SYMLINK_DIR/$n ]; then
+   c="connected"
+  else
+   c="not connected"
+  fi
+ echo -e "$s\t$n\t$c"
+ done
+fi
 
 
