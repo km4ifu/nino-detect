@@ -10,8 +10,11 @@ piuser=indeo
 piuser=$(whoami)
 devserdir=/dev/serial/by-id
 
+VERSION=012219a
 DO_RESET=0
 DEBUG=0
+LIST_TNCS=0
+APPLY_CHANGES=0
 
 function nt_init()
 {
@@ -37,13 +40,26 @@ function nt_reset()
  fi
 }
 
+usage()
+ {
+  echo $(basename $0) v$VERSION
+  echo -e "
+\t-d\tdebug mode
+\t-r\treset all memories
+\t-l\tlist current connected TNCs and memories
+\t-a\tdetect and apply new changes
+\t-h\thelp
+  "
+ }
 
-
-while getopts "dr" o; do
+while getopts "drlah" o; do
  case $o in
   d) DEBUG=1; echo debugging mode enabled; ;;
   r) DO_RESET=1; ;;
-  *) echo invalid arg $o; exit 1; ;;
+  l) LIST_TNCS=1; ;;
+  a) APPLY_CHANGES=1; ;;
+  h) usage; exit 0; ;;
+  *) echo invalid arg $o; usage; exit 1; ;;
  esac
 done
 
