@@ -7,14 +7,15 @@ VERSION="010520a-km4ifu - initial write, untested with multiple tncs"
 VERSION="012220a-km4ifu - rewrite with multiple ftdi chips for testing"
 
 TNC_SYMLINK_DIR=/home/pi/nino-tnc
-TNC_SYMLINK_DIR=/tmp/nino-tnc
+#TNC_SYMLINK_DIR=/tmp/nino-tnc
 if grep "^pi:" /etc/passwd &>/dev/null; then
  SYMLINK_OWNER=pi
 else
  SYMLINK_OWNER=$(whoami)
 fi
 DEVICE_SERIAL_DIR=/dev/serial/by-id
-TNC_DATA_FILE=/tmp/nino-tnc.dat
+TNC_DATA_FILE=/home/$SYMLINK_OWNER/nino-tnc.dat
+#TNC_DATA_FILE=/tmp/nino-tnc.dat
 tools="bc which sed awk grep ls"
 DO_RESET=0
 DEBUG=0
@@ -30,6 +31,7 @@ function nt_init()
   fi
  done
  if ! [ $(id -u) -eq 0 ]; then
+  echo $(basename $0) $VERSION
   echo must be run as root or with sudo
   exit 1
  fi
