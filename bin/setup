@@ -1,0 +1,8 @@
+#!/bin/bash
+
+if [ $(id -u) -ne 0 ]; then
+ echo must run setup as root
+ exit 1
+fi
+
+cp -v bin/nino-detect /usr/local/bin/
