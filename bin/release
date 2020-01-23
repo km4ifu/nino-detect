@@ -1,0 +1,4 @@
+#!/bin/bash
+
+mkdir -pv release
+VERSION=$(grep "^VERSION=" bin/nino-detect | tail -1)

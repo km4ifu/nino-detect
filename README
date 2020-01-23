@@ -1,1 +1,7 @@
 Initialized by git-tools/gin
+
+nino-tnc detection script
+km4ifu@fourpx.org
+
+Detects the TARPN Nino-TNC by FTDI serial number and creates symlinks in /home/pi/{1,2,3,...}
+for use in node.ini file.
